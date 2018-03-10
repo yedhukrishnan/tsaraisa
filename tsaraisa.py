@@ -11,7 +11,10 @@ import sys
 import cv2
 import threading
 import argparse
-from gps import gps, WATCH_ENABLE
+import imageio
+import numpy as np
+import matplotlib.pyplot as plt
+# from gps import gps, WATCH_ENABLE
 
 def onTrackbarChange(_):
     """Pass any trackbar changes"""
@@ -41,10 +44,10 @@ def read_paths(path):
                     images[0].append(imgpath)
                     limit = re.findall('[0-9]+', filename)
                     images[1].append(limit[0])
-                except IOError, (errno, strerror):
-                    print "I/O error({0}): {1}".format(errno, strerror)
+                except(IOError, (errno, strerror)):
+                    print("I/O error({0}): {1}".format(errno, strerror))
                 except:
-                    print "Unexpected error:", sys.exc_info()[0]
+                    print("Unexpected error:", sys.exc_info()[0])
                     raise
     return images
 
@@ -54,7 +57,7 @@ def load_images(imgpath):
     images = read_paths(imgpath)
     imglist = [[], [], [], []]
     cur_img = 0
-    sift = cv2.SIFT()
+    sift = cv2.xfeatures2d.SIFT_create()
     for i in images[0]:
         img = cv2.imread(i, 0)
         imglist[0].append(img)
@@ -94,8 +97,8 @@ def run_flann(img):
             return biggest_speed, biggest_amnt
         else:
             return "Unknown", 0
-    except Exception, exept:
-        print exept
+    except(Exception, exept):
+        print(exept)
         return "Unknown", 0
 
 IMAGES = load_images("data")
@@ -110,6 +113,9 @@ def run_logic():
     try:
         if CAP.isOpened():
             rval, frame = CAP.read()
+            rval = True
+            # frame = imageio.imread('20.jpg')
+            # plt.imshow(frame); plt.show()
             print("Camera opened and frame read")
         else:
             rval = False
@@ -119,12 +125,13 @@ def run_logic():
             if ARGS.MORPH:
                 frame = cv2.morphologyEx(
                     frame,
-                    cv2.MORPH_OPEN, 
+                    cv2.MORPH_OPEN,
                     cv2.getStructuringElement(cv2.MORPH_RECT,(2,2))
                     )
+                # plt.imshow(frame); plt.show()
                 frame = cv2.morphologyEx(
-                    frame, 
-                    cv2.MORPH_CLOSE, 
+                    frame,
+                    cv2.MORPH_CLOSE,
                     cv2.getStructuringElement(cv2.MORPH_RECT,(2,2))
                     )
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -139,7 +146,9 @@ def run_logic():
                 ARGS.CHECKS = cv2.getTrackbarPos('FLANNCHECKS','preview')
                 ARGS.TREES = cv2.getTrackbarPos('FLANNTREES','preview')
 
-            scaledsize = (frame.shape[1]/downscale, frame.shape[0]/downscale)
+            scaledsize = (int(frame.shape[1]/downscale), int(frame.shape[0]/downscale))
+            print(frame)
+            print(scaledsize)
             scaledframe = cv2.resize(frame, scaledsize)
 
             # Detect signs in downscaled frame
@@ -151,6 +160,8 @@ def run_logic():
                 (10, 10),
                 (200, 200))
             for sign in signs:
+                print("-----")
+                print(sign)
                 xpos, ypos, width, height = [ i*downscale for i in sign ]
 
                 crop_img = frame[ypos:ypos+height, xpos:xpos+width]
@@ -164,16 +175,16 @@ def run_logic():
                             possiblematch = comp
                             matches = matches + 1
                             if matches >= ARGS.matches:
-                                print "New speed limit: "+possiblematch
+                                print("New speed limit: "+possiblematch)
                                 lastlimit = possiblematch
                                 matches = 0
                         else:
                             possiblematch = "00"
                             matches = 0
                     cv2.rectangle(
-                        origframe, 
-                        (xpos, ypos), 
-                        (xpos+width, ypos+height), 
+                        origframe,
+                        (xpos, ypos),
+                        (xpos+width, ypos+height),
                         (0, 0, 255))
                     cv2.putText(
                         origframe,
@@ -213,7 +224,7 @@ def run_logic():
             if ARGS.GPS:
                 curspeed = GPSP.speed
                 #debug value used when testing on non-moving environment.
-                #curspeed = GPSP.speed*200 
+                #curspeed = GPSP.speed*200
                 if lastlimit != "00":
                     overspeed = curspeed - float(lastdetect)
                 else:
@@ -230,9 +241,9 @@ def run_logic():
 
                 if overspeed > 0:
                     print("OVERSPEED ",
-                        curspeed+overspeed, 
-                        " km/h!", 
-                        overspeed, 
+                        curspeed+overspeed,
+                        " km/h!",
+                        overspeed,
                         " km/h over speedlimit."
                         )
                     cv2.putText(
@@ -249,16 +260,16 @@ def run_logic():
 
             _ = cv2.waitKey(20)
             rval, frame = CAP.read()
-    except (KeyboardInterrupt, Exception), exept:
-        print exept
+    except((KeyboardInterrupt, Exception), exept):
+        print(exept)
         if ARGS.GPS:
-            print "Killing GPS"
+            print("Killing GPS")
             GPSP.running = False
             GPSP.join()
-        print "Shutting down!"
+        print("Shutting down!")
 
 # Preload all classes used in detection
-SIFT = cv2.SIFT()
+SIFT = cv2.xfeatures2d.SIFT_create()
 INDEX_PARAMS = None
 SEARCH_PARAMS = None
 FLANN = None
@@ -273,52 +284,52 @@ if __name__ == "__main__":
 
     PARSER.add_argument("-d", "--device", dest="SOURCE", default=0,
       help="Index of used video device. Default: 0 (/dev/video0).")
-    PARSER.add_argument("-g", "--gps", 
+    PARSER.add_argument("-g", "--gps",
         dest="GPS", action="store_true", default=False,
       help="Enable over speeding detection.")
-    PARSER.add_argument("-o", "--overspeed", 
+    PARSER.add_argument("-o", "--overspeed",
         dest="COMMAND", default="false",
       help="Command used in overspeed warning." \
       " Default: echo OVERSPEEDING!.")
-    PARSER.add_argument("-c", "--cascade", 
+    PARSER.add_argument("-c", "--cascade",
         dest="CASCADE", default="lbpCascade.xml",
       help="Cascade used in speed sign detection." \
       " Default: lbpCascade.xml.")
-    PARSER.add_argument("-k", "--keypoints", 
+    PARSER.add_argument("-k", "--keypoints",
         dest="MINKP", default=5,
       help="Min amount of keypoints required in" \
       " limit recognition. Default: 5.")
-    PARSER.add_argument("-D", "--downscale", 
+    PARSER.add_argument("-D", "--downscale",
         dest="DOWNSCALE", default=1,
       help="Multiplier for downscaling frame before" \
       " detecting signs. Default: 1.")
-    PARSER.add_argument("-f", "--flann", 
+    PARSER.add_argument("-f", "--flann",
         dest="FLANNTHRESHOLD", default=0.8,
       help="Threshold multiplier for accepting FLANN matches." \
       " Default: 0.8.")
-    PARSER.add_argument("-F", "--flannchecks", 
+    PARSER.add_argument("-F", "--flannchecks",
         dest="CHECKS", default=50,
       help="How many checks will be done in FLANN matching." \
       " Default: 50.")
-    PARSER.add_argument("-t", "--flanntrees", 
+    PARSER.add_argument("-t", "--flanntrees",
         dest="TREES", default=5,
       help="How many trees will be used in FLANN matching." \
       " Default: 5.")
-    PARSER.add_argument("-m", "--matches", 
+    PARSER.add_argument("-m", "--matches",
         dest="matches", default=2,
       help="How many consecutive keypoint matches are needed" \
       " before setting new limit. Default: 2.")
-    PARSER.add_argument("-e", "--disable-eq", 
+    PARSER.add_argument("-e", "--disable-eq",
         dest="EQ", action="store_false", default=True,
       help="Disable histogram equalization.")
-    PARSER.add_argument("-M", "--morphopenclose", 
+    PARSER.add_argument("-M", "--morphopenclose",
         dest="MORPH", action="store_true", default=False,
       help="Enable morphological open/close used in removing" \
       " noise from image.")
-    PARSER.add_argument("-T", "--trackbars", 
+    PARSER.add_argument("-T", "--trackbars",
         dest="TRACKBARS", action="store_true", default=False,
       help="Enable debug trackbars.")
-    PARSER.add_argument("-s", "--showvid", 
+    PARSER.add_argument("-s", "--showvid",
         dest="PREVIEW", action="store_true", default=False,
       help="Show output video with detections.")
     ARGS = PARSER.parse_args()
@@ -339,14 +350,14 @@ if __name__ == "__main__":
 
     if ARGS.TRACKBARS:
         cv2.createTrackbar(
-            'MINKEYPOINTS', 
-            'preview', 
-            ARGS.MINKP, 
-            100, 
+            'MINKEYPOINTS',
+            'preview',
+            ARGS.MINKP,
+            100,
             onTrackbarChange)
         cv2.createTrackbar(
-            'DOWNSCALE', 
-            'preview', 
+            'DOWNSCALE',
+            'preview',
             int(ARGS.DOWNSCALE),
             20,
             onTrackbarChange)
@@ -357,15 +368,15 @@ if __name__ == "__main__":
             10,
             onTrackbarChange)
         cv2.createTrackbar(
-            'FLANNCHECKS', 
-            'preview', 
-            ARGS.CHECKS, 
-            1000, 
+            'FLANNCHECKS',
+            'preview',
+            ARGS.CHECKS,
+            1000,
             onTrackbarChange)
         cv2.createTrackbar(
-            'FLANNTREES', 
-            'preview', 
-            ARGS.TREES, 
-            50, 
+            'FLANNTREES',
+            'preview',
+            ARGS.TREES,
+            50,
             onTrackbarChange)
     run_logic()
