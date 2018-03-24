@@ -19,19 +19,6 @@ import matplotlib.pyplot as plt
 def onTrackbarChange(_):
     """Pass any trackbar changes"""
 
-class GPSInfo(threading.Thread):
-    """Thread that takes care of updating GPS Speed info."""
-    def __init__(self):
-        threading.Thread.__init__(self)
-        self.gpsd = gps(mode=WATCH_ENABLE)
-        self.running = True
-        self.speed = 0
-
-    def run(self):
-        while self.running:
-            self.gpsd.next()
-            self.speed = self.gpsd.fix.speed*3.6 #from m/s to km/h
-
 def read_paths(path):
     """Returns a list of files in given path"""
     images = [[] for _ in range(2)]
@@ -221,40 +208,6 @@ def run_logic():
             2
             )
 
-            if ARGS.GPS:
-                curspeed = GPSP.speed
-                #debug value used when testing on non-moving environment.
-                #curspeed = GPSP.speed*200
-                if lastlimit != "00":
-                    overspeed = curspeed - float(lastdetect)
-                else:
-                    overspeed = 0
-                if overspeed <= 0:
-                    cv2.putText(
-                        origframe,
-                        "Current speed: "+str(curspeed)+" km/h.",
-                        (5,100),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1,
-                        (0,0,0),
-                        2)
-
-                if overspeed > 0:
-                    print("OVERSPEED ",
-                        curspeed+overspeed,
-                        " km/h!",
-                        overspeed,
-                        " km/h over speedlimit."
-                        )
-                    cv2.putText(
-                        origframe,
-                        "Overspeed "+str(curspeed+overspeed)+" km/h!",
-                        (5,100),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1,
-                        (0,0,255),
-                        2)
-
             if ARGS.PREVIEW:
                 cv2.imshow("preview", origframe)
 
@@ -343,10 +296,6 @@ if __name__ == "__main__":
 
     if ARGS.PREVIEW:
         cv2.namedWindow("preview")
-
-    if ARGS.GPS:
-        GPSP = GPSInfo()
-        GPSP.start()
 
     if ARGS.TRACKBARS:
         cv2.createTrackbar(
